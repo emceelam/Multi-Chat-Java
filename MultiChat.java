@@ -6,7 +6,6 @@ import java.nio.channels.*;
 import java.util.*;
 import java.lang.*;
 
-
 public class MultiChat {
   public static void main (String argv[]) {
     int port = 4022;
@@ -17,18 +16,16 @@ public class MultiChat {
       ssc.configureBlocking(false);
 
       ArrayList<SocketChannel> clients = new ArrayList<SocketChannel>();
-      SocketChannel currClient;
-      int loopCnt = 0;
       while (true) {
-        System.out.println("select: " + loopCnt++);
         Selector selector = Selector.open ();
         ssc.register( selector, SelectionKey.OP_ACCEPT);
         Iterator<SocketChannel> iter = clients.iterator();
         while (iter.hasNext()) {
-          currClient = iter.next();
-          currClient.register(selector, SelectionKey.OP_READ);
+          SocketChannel channel;
+          channel = iter.next();
+          channel.register(selector, SelectionKey.OP_READ);
         }
-        
+
         try {
 
           int unblockedCnt = selector.select();  // block on i/o activity
@@ -40,8 +37,10 @@ public class MultiChat {
 
           Set keys = selector.selectedKeys();
           Iterator it = keys.iterator();
+          SocketChannel readChannel;
           while (it.hasNext()) {
             SelectionKey key = (SelectionKey)it.next();
+
             if ((key.readyOps() & SelectionKey.OP_ACCEPT) == SelectionKey.OP_ACCEPT) {
               Socket socket = ssc.socket().accept();
               SocketChannel sc = socket.getChannel();
@@ -51,14 +50,14 @@ public class MultiChat {
             else if (
               (key.readyOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ)
             {
-              currClient = (SocketChannel) key.channel();
+              readChannel = (SocketChannel) key.channel();
               ByteBuffer buf = ByteBuffer.allocate( 80 );
               buf.clear();
-              int nread = currClient.read(buf);
-              System.out.println ("nread: " + nread);
+              int nread = readChannel.read(buf);
+              //System.out.println ("nread: " + nread);
               if (nread == -1) {
                 System.out.println ("removing closed client");
-                clients.remove(currClient);
+                clients.remove(readChannel);
                 continue;
               }
 
@@ -68,14 +67,14 @@ public class MultiChat {
 
               Iterator<SocketChannel> writeIter = clients.iterator();
               while (writeIter.hasNext()) {
-                SocketChannel writeClient = writeIter.next();
-                if (writeClient == currClient) {
+                SocketChannel writeChannel = writeIter.next();
+                if (writeChannel == readChannel) {
                   continue; // skip the originator
                 }
-                int nwrite = writeClient.write(
+                int nwrite = writeChannel.write(
                   ByteBuffer.wrap( (str + "\n").getBytes())
                 );
-                System.out.println ("nwrite: " + nwrite);
+                //System.out.println ("nwrite: " + nwrite);
               }
             }
           }
