@@ -28,40 +28,66 @@ public class MultiChat {
           currClient = iter.next();
           currClient.register(selector, SelectionKey.OP_READ);
         }
+        
+        try {
 
-        int unblockedCnt = selector.select();  // block on i/o activity
-        
-        // why would this ever be 0
-        if (unblockedCnt == 0) {
-          continue;
-        }
-        
-        Set keys = selector.selectedKeys();
-        Iterator it = keys.iterator();
-        while (it.hasNext()) {
-          SelectionKey key = (SelectionKey)it.next();
-          if ((key.readyOps() & SelectionKey.OP_ACCEPT) == SelectionKey.OP_ACCEPT) {
-            Socket socket = ssc.socket().accept();
-            SocketChannel sc = socket.getChannel();
-            sc.configureBlocking(false);
-            clients.add(sc);
+          int unblockedCnt = selector.select();  // block on i/o activity
+
+          // why would this ever be 0
+          if (unblockedCnt == 0) {
+            continue;
           }
-          else if (
-            (key.readyOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ)
-          {
-            SocketChannel sc = (SocketChannel) key.channel();
-            ByteBuffer buf = ByteBuffer.allocate( 80 );
-            buf.clear();
-            int nread = sc.read(buf);
-            System.out.println ("nread: " + nread);
-            String str = new String(buf.array());
-            str = str.trim();
-            System.out.println ("str: " + str);
-            int nwrite = sc.write( ByteBuffer.wrap( (str + "\n").getBytes()) );
-            System.out.println ("nwrite: " + nwrite);
+
+          Set keys = selector.selectedKeys();
+          Iterator it = keys.iterator();
+          while (it.hasNext()) {
+            SelectionKey key = (SelectionKey)it.next();
+            if ((key.readyOps() & SelectionKey.OP_ACCEPT) == SelectionKey.OP_ACCEPT) {
+              Socket socket = ssc.socket().accept();
+              SocketChannel sc = socket.getChannel();
+              sc.configureBlocking(false);
+              clients.add(sc);
+            }
+            else if (
+              (key.readyOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ)
+            {
+              currClient = (SocketChannel) key.channel();
+              ByteBuffer buf = ByteBuffer.allocate( 80 );
+              buf.clear();
+              int nread = currClient.read(buf);
+              System.out.println ("nread: " + nread);
+              if (nread == -1) {
+                System.out.println ("removing closed client");
+                clients.remove(currClient);
+                continue;
+              }
+
+              String str = new String(buf.array());
+              str = str.trim();
+              System.out.println ("str: " + str);
+
+              Iterator<SocketChannel> writeIter = clients.iterator();
+              while (writeIter.hasNext()) {
+                SocketChannel writeClient = writeIter.next();
+                if (writeClient == currClient) {
+                  continue; // skip the originator
+                }
+                int nwrite = writeClient.write(
+                  ByteBuffer.wrap( (str + "\n").getBytes())
+                );
+                System.out.println ("nwrite: " + nwrite);
+              }
+            }
           }
+          keys.clear();
         }
-        keys.clear();
+        catch (IOException e) {
+          if (e.getMessage() == "Broken pipe") {
+            System.out.println ("SIGPIPE");
+            continue;
+          }
+          System.err.println ("IOException: " + e.getMessage());
+        }
       }
     }
     catch (IOException e) {
