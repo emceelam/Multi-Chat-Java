@@ -5,24 +5,28 @@ import java.nio.*;
 import java.nio.channels.*;
 import java.util.*;
 import java.lang.*;
+import java.time.*;
 
 public class MultiChat {
   public static void main (String argv[]) {
     int port = 4022;
+    long time_out = 10;  // seconds
     try {
       ServerSocketChannel ssc = ServerSocketChannel.open();
       //ssc.setOption(SO_REUSEADDR, true);
       ssc.bind(new InetSocketAddress(port));
       ssc.configureBlocking(false);
 
-      ArrayList<SocketChannel> clients = new ArrayList<SocketChannel>();
+      Dictionary<SocketChannel,Long> channelToExpiration
+        = new Hashtable<SocketChannel,Long>();
+      //ArrayList<Client> clients = new ArrayList<Client>();
       while (true) {
         Selector selector = Selector.open ();
         ssc.register( selector, SelectionKey.OP_ACCEPT);
-        Iterator<SocketChannel> iter = clients.iterator();
-        while (iter.hasNext()) {
-          SocketChannel channel;
-          channel = iter.next();
+        Enumeration<SocketChannel> enumeration = channelToExpiration.keys();
+
+        while (enumeration.hasMoreElements()) {
+          SocketChannel channel = enumeration.nextElement();
           channel.register(selector, SelectionKey.OP_READ);
         }
 
@@ -38,14 +42,15 @@ public class MultiChat {
           Set keys = selector.selectedKeys();
           Iterator it = keys.iterator();
           SocketChannel readChannel;
+          long now = Instant.now().getEpochSecond();
           while (it.hasNext()) {
             SelectionKey key = (SelectionKey)it.next();
 
             if ((key.readyOps() & SelectionKey.OP_ACCEPT) == SelectionKey.OP_ACCEPT) {
               Socket socket = ssc.socket().accept();
-              SocketChannel sc = socket.getChannel();
-              sc.configureBlocking(false);
-              clients.add(sc);
+              SocketChannel channel = socket.getChannel();
+              channel.configureBlocking(false);
+              channelToExpiration.put (channel, now + time_out);
             }
             else if (
               (key.readyOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ)
@@ -57,7 +62,7 @@ public class MultiChat {
               //System.out.println ("nread: " + nread);
               if (nread == -1) {
                 System.out.println ("removing closed client");
-                clients.remove(readChannel);
+                channelToExpiration.remove(readChannel);
                 continue;
               }
 
@@ -65,9 +70,9 @@ public class MultiChat {
               str = str.trim();
               System.out.println ("str: " + str);
 
-              Iterator<SocketChannel> writeIter = clients.iterator();
-              while (writeIter.hasNext()) {
-                SocketChannel writeChannel = writeIter.next();
+              enumeration = channelToExpiration.keys();
+              while (enumeration.hasMoreElements()) {
+                SocketChannel writeChannel = enumeration.nextElement();
                 if (writeChannel == readChannel) {
                   continue; // skip the originator
                 }
