@@ -19,7 +19,7 @@ public class MultiChat {
 
       Dictionary<SocketChannel,Long> channelToExpiration
         = new Hashtable<SocketChannel,Long>();
-      //ArrayList<Client> clients = new ArrayList<Client>();
+      long selectTimeoutSec = 0;
       while (true) {
         Selector selector = Selector.open ();
         ssc.register( selector, SelectionKey.OP_ACCEPT);
@@ -32,12 +32,8 @@ public class MultiChat {
 
         try {
 
-          int unblockedCnt = selector.select();  // block on i/o activity
-
-          // why would this ever be 0
-          if (unblockedCnt == 0) {
-            continue;
-          }
+          int unblockedCnt = selector.select(selectTimeoutSec*1000); 
+            // block on i/o activity or timeout on idle clients
 
           Set keys = selector.selectedKeys();
           Iterator it = keys.iterator();
@@ -66,6 +62,10 @@ public class MultiChat {
                 continue;
               }
 
+              // update the time out
+              channelToExpiration.put(readChannel, now + time_out);
+
+              // evaluate the incoming text
               String str = new String(buf.array());
               str = str.trim();
               System.out.println ("str: " + str);
@@ -83,7 +83,30 @@ public class MultiChat {
               }
             }
           }
-          keys.clear();
+          //keys.clear();
+          enumeration = channelToExpiration.keys();
+          selectTimeoutSec = 0;
+          while(enumeration.hasMoreElements()) {
+            SocketChannel channel = enumeration.nextElement();
+            long expiration = channelToExpiration.get(channel);
+            long duration = expiration - now;
+            if (duration <= 0) {
+              System.out.println ("Expired client. Closing socket.");
+              channelToExpiration.remove(channel);
+              channel.socket().close();
+              continue;
+            }
+            if (selectTimeoutSec == 0) {
+              selectTimeoutSec = duration;
+              continue;
+            }
+            if (duration < selectTimeoutSec) {
+              selectTimeoutSec = duration;
+            }
+            selectTimeoutSec = selectTimeoutSec > 0 ? selectTimeoutSec: 1;
+              // select timeout needs to be a positive number
+          }
+          System.out.println ("selectTimeoutSec: " + selectTimeoutSec);
         }
         catch (IOException e) {
           if (e.getMessage() == "Broken pipe") {
