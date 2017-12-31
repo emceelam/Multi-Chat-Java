@@ -1,6 +1,6 @@
 # NAME
 
-multi_chat_c - A socket-based multi-client chat written with C code
+multi_chat_c - A socket-based multi-client chat written with Java code
 
 # SYNOPSIS
 
