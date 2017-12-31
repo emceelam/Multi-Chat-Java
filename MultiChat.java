@@ -57,8 +57,9 @@ public class MultiChat {
               int nread = readChannel.read(buf);
               //System.out.println ("nread: " + nread);
               if (nread == -1) {
-                System.out.println ("removing closed client");
                 channelToExpiration.remove(readChannel);
+                readChannel.socket().close();
+                System.out.println ("client has disconnected");
                 continue;
               }
 
@@ -68,6 +69,15 @@ public class MultiChat {
               // evaluate the incoming text
               String str = new String(buf.array());
               str = str.trim();
+              if (str.equals("")) {
+                continue;
+              }
+              if (str.equalsIgnoreCase("quit")) {
+                channelToExpiration.remove(readChannel);
+                readChannel.socket().close();
+                System.out.println("client quits");
+                continue;
+              }
               System.out.println ("str: " + str);
 
               enumeration = channelToExpiration.keys();
@@ -86,12 +96,13 @@ public class MultiChat {
           //keys.clear();
           enumeration = channelToExpiration.keys();
           selectTimeoutSec = 0;
+            // select blocks on timeout of 0
           while(enumeration.hasMoreElements()) {
             SocketChannel channel = enumeration.nextElement();
             long expiration = channelToExpiration.get(channel);
             long duration = expiration - now;
             if (duration <= 0) {
-              System.out.println ("Expired client. Closing socket.");
+              System.out.println ("Client times out. Closing connection.");
               channelToExpiration.remove(channel);
               channel.socket().close();
               continue;
