@@ -11,6 +11,14 @@ public class MultiChat {
   public static void main (String argv[]) {
     int port = 4022;
     long time_out = 10;  // seconds
+    System.out.println (
+      "Multi client chat server, using telnet, programmed in Python.\n" +
+      "To connect:\n" +
+      "    telnet 127.0.0.1 " + port + "\n" +
+      "\n" +
+      "Everything typed by one chat user will be copied to other chat users.\n" +
+      "Typing 'quit' on telnet sessions will disconnect."
+    );
     try {
       ServerSocketChannel ssc = ServerSocketChannel.open();
       //ssc.setOption(SO_REUSEADDR, true);
