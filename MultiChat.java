@@ -107,15 +107,13 @@ public class MultiChat {
               channel.socket().close();
               continue;
             }
-            if (selectTimeoutSec == 0) {
+
+            // minimum timeout calc
+            if ( selectTimeoutSec == 0 // unitialized value
+              || duration < selectTimeoutSec) // undercut a previous low
+            {
               selectTimeoutSec = duration;
-              continue;
             }
-            if (duration < selectTimeoutSec) {
-              selectTimeoutSec = duration;
-            }
-            selectTimeoutSec = selectTimeoutSec > 0 ? selectTimeoutSec: 1;
-              // select timeout needs to be a positive number
           }
           System.out.println ("selectTimeoutSec: " + selectTimeoutSec);
         }
